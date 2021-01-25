@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+
+  initialized_db:
+    image: guacamole/guacamole:latest
+    command: ["/bin/sh", "-c", "test -e /init/initdb.sql && echo 'initialize script already exists' || /opt/guacamole/bin/initdb.sh --mysql > /init/initdb.sql" ]
+    volumes:
+      - ./init:/init    
+
+  mariadb:
+    container_name: mariadb
+    hostname: mariadb
+    image: library/mariadb:latest
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql_root_passwd
+      MYSQL_DATABASE: guacamole_db
+      MYSQL_USER: guacamole_user
+      MYSQL_PASSWORD: guacamole_passwd
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - ./data:/var/lib/mysql:rw
+    depends_on:
+      - initialized_db
+
+  guacd:
+    container_name: guacd
+    hostname: guacd
+    image: guacamole/guacd:latest
+    restart: always
+    environment:
+      GUACD_LOG_LEVEL: debug
+
+  guacamole:
+    container_name: guacamole
+    hostname: guacamole
+    image: guacamole/guacamole:latest
+    restart: always
+    links:
+      - guacd
+      - mariadb
+    depends_on:
+      - guacd
+      - mariadb
+    ports:
+      - "8080:8080"
+    environment:
+      GUACD_HOSTNAME: guacd
+      MYSQL_HOSTNAME: mariadb
+      MYSQL_DATABASE: guacamole_db
+      MYSQL_USER: guacamole_user
+      MYSQL_PASSWORD: guacamole_passwd
